@@ -50,11 +50,15 @@ instance Show Root where
                                                        else " - ")
                                                    ++ f (abs ya :-/ yb) z
 
-(-/)   :: Rational -> Integer -> Root
-a -/ b =  if a * (c % 1) == 0
+(-/)   :: (Real a, Integral b) => a -> b -> Root
+a -/ b =  if a' * (c % 1) == 0
              then Zero
-             else ((a * (c % 1)) :-/ ps) :+ Zero
-          where allps   = group $ primeFactors b
+             else ((a' * (c % 1)) :-/ ps) :+ Zero
+          where a' :: Rational
+                a' =  toRational a
+                b' :: Integer
+                b' =  toInteger b
+                allps   = group $ primeFactors b'
                 ptimes  = zip (map head   allps) -- [(prime, times)]
                               (map length allps) -- 18 -> [(2, 1), (3, 2)]
                                                  -- means 2 ^ 1 + 3 ^ 2
