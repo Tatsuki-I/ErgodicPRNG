@@ -9,6 +9,10 @@ import           Data.Ratio
 import           Data.Word       ( Word32 )
 import           Control.Lens    ( (^.)
                                  , makeLenses )
+import           System.Console.ANSI ( clearLine
+                                     , clearScreen
+                                     , clearFromCursorToScreenBeginning )
+
 
 data RState = RState { _x     :: Root
                      , _y     :: Root
@@ -62,7 +66,7 @@ fYInt n rst fn s i |  rst ^. count == n = return ()
 appendCSVyIntBS l n sx sy =  fYIntBS n (mkRst l sx sy) ("UInt32_n-" ++ show n ++ ".bin") 0
 
 fYIntBS n rst fn c |  rst ^. count == n = return ()
-                   |  otherwise         = do print c
+                   |  otherwise         = do putStrLn (show c ++ " / " ++ show n ++ ": " ++ show ((fromIntegral c) / (fromIntegral n * 10000)) ++ " %")
                                              BS.appendFile fn (encode cy)
                                              fYIntBS n (go rst) fn (c + 1)
                                              where cy :: Word32
