@@ -11,13 +11,14 @@ data RState = RState { _x     :: Root
                      , _y     :: Root
                      , _bx    :: Bool
                      , _by    :: Bool
-                     , _l     :: Rational
+                     , _l     :: Root
+                     -- , _l     :: Rational
                      , _count :: Integer
                      } deriving ( Show )
 
 makeLenses ''RState
 
-mkRst         :: Rational -> Root -> Root -> RState
+mkRst         :: Root -> Root -> Root -> RState
 mkRst l sx sy =  RState { _x     = sx 
                         , _y     = sy
                         , _bx    = True
@@ -36,54 +37,61 @@ ly =  1
 
 re = ((3 % 2) -/1) + ((-1 % 2) -/5) -- 1/2.618
 
-f         :: Rational
-          -> Root
-          -> Root
-          -> RState
-f l sx sy =  go (mkRst l sx sy)
+fn n sx sy =  "X_"   ++ show (toFloating sx) ++
+              "_Y_"   ++ show (toFloating sy) ++
+              "_n_"   ++ show n ++ ".csv"
 
-makecsv              :: Rational -> Integer -> Root -> Root -> IO ()
-makecsv l n sx sy =  do putStrLn  (randomstr l n sx sy)
-                        writeFile ("X_"   ++ show (toFloating sx) ++
-                                  "_Y_"   ++ show (toFloating sy) ++
-                                  "_Len_" ++ show (numerator l)   ++
-                                  "-"     ++ show (denominator l) ++
-                                  "_n_"   ++ show n ++ ".csv")
-                                  (randomstr l n sx sy)
-
-appendCSV l n sx sy =  do appendFile fn "n, X, Y\n"
-                          f' n (mkRst l sx sy) fn
-                          where fn = ("X_"   ++ show (toFloating sx) ++
-                                     "_Y_"   ++ show (toFloating sy) ++
-                                     "_Len_" ++ show (numerator l)   ++
-                                     "-"     ++ show (denominator l) ++
-                                     "_n_"   ++ show n ++ ".csv")
+appendCSV l n sx sy =  do appendFile (fn n sx sy) "n, X, Y\n"
+                          f' n (mkRst l sx sy) (fn n sx sy)
 
 f' n rst fn |  rst ^. count == n = return ()
             |  otherwise         = do putStrLn $ putRst rst
                                       appendFile fn $ putRst rst
                                       f' n (go rst) fn
 
+appendCSVyInt l n sx sy i =  fYInt n (mkRst l sx sy) ("Int" ++ show i ++ "_" ++ fn n sx sy) i
+
+fYInt n rst fn i |  rst ^. count == n = return ()
+                 |  otherwise         = do putStrLn    (show (rst ^. count) ++ "    " ++ show (mapInt i $ rst ^. y))
+                                           appendFile fn ((show $ mapInt i $ rst ^. y) ++ "\n")
+                                           fYInt n (go rst) fn i
+
+appendCSVyFloat l n sx sy =  fYFloat n (mkRst l sx sy) ("Float_" ++ fn n sx sy)
+
+fYFloat n rst fn |  rst ^. count == n = return ()
+                 |  otherwise         = do putStrLn      (show $ toFloating $ rst ^. y)
+                                           appendFile fn ((show $ toFloating $ rst ^. y) ++ "\n")
+                                           fYFloat n (go rst) fn
+
 putRst     :: RState -> String
 putRst rst =  show (rst ^. count)          ++ ", " ++
               show (toFloating $ rst ^. x) ++ ", " ++
               show (toFloating $ rst ^. y) ++ "\n"
 
-randomstr           :: Rational -> Integer -> Root -> Root -> String
+randomstr           :: Root -> Integer -> Root -> Root -> String
 randomstr l n sx sy =  "n, X, Y\n0, " ++
                        show (toFloating sx) ++ ", " ++ 
                        show (toFloating sy) ++ "\n" ++
-                       randoms''' n (mkRst l sx sy)
+                       randoms''' n (mkRst l sx sy) (toFloating)
 
-randoms'''       :: Integer -> RState -> String
-randoms''' n rst |  rst ^. count == n = ""
-                 |  otherwise         = show (rst ^. count)           ++ ", " ++
-                                        show (toFloating $ nrst ^. x) ++ ", " ++
-                                        show (toFloating $ nrst ^. y) ++ "\n" ++
-                                        randoms''' n nrst
-                                        where nrst = go rst
+mapInt     :: Integral a => Int -> Root -> a
+mapInt i r =  floor (toFloating (r * (mb i)))
+              where mb :: Int -> Root
+                    mb 8  =  127
+                    mb 16 =  32767
+                    mb 32 =  2147483647
+                    mb 64 =  9223372036854775807
 
-randoms         :: Floating a => Rational -> Root -> Root -> [a]
+
+randoms'''           :: Show a => Integer -> RState -> (Root -> a) -> [Char]
+randoms''' n rst (f) |  rst ^. count == n = ""
+                     |  otherwise         = show (rst ^. count)  ++ ", " ++
+                                            show (f $ nrst ^. x) ++ ", " ++
+                                            show (f $ nrst ^. y) ++ "\n" ++
+                                            randoms''' n nrst (f)
+                                            where nrst = go rst
+
+randoms         :: Floating a => Root -> Root -> Root -> [a]
 randoms l sx sy =  toFloating ((sx + sy) * re) : randoms'' (mkRst l sx sy)
 
 randoms'' rst =  toFloating ((nrst ^. x + nrst ^. y) * re) : randoms'' nrst
@@ -98,7 +106,8 @@ go rst =  rst { _x     = nx
               , _bx    = nbx
               , _by    = nby
               , _count = rst ^. count + 1 }
-          where ln  = ((rst ^. l) * (1 % 2)) -/ 2
+          where --ln  = (rst ^. l) * ((1 % 2) -/ 2)
+                ln  = (lx * (1 -/ 2)) * ((1 % 2) -/ 2)
                 cx  = rst ^. x  -- current x
                 cy  = rst ^. y  -- current y
                 cbx = rst ^. bx -- current x bool
