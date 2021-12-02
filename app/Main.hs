@@ -6,8 +6,7 @@ import Data.Root
 
 main :: IO ()
 main =  do args <- getArgs
-           appendCSVyInt (gr * (1-/2))
-                         1000000000
-                         0
-                         0
-                         32
+           appendCSVyIntBS (gr * (1-/2))
+                           (read $ args !! 0)
+                           0
+                           0

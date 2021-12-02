@@ -33,6 +33,8 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , binary
+    , bytestring
     , lens
     , primes
   default-language: Haskell2010
@@ -47,6 +49,8 @@ executable ErgodicPRNG
   build-depends:
       ErgodicPRNG
     , base >=4.7 && <5
+    , binary
+    , bytestring
     , lens
     , primes
   default-language: Haskell2010
@@ -62,6 +66,8 @@ test-suite ErgodicPRNG-test
   build-depends:
       ErgodicPRNG
     , base >=4.7 && <5
+    , binary
+    , bytestring
     , lens
     , primes
   default-language: Haskell2010
