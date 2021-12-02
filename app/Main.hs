@@ -10,3 +10,10 @@ main =  do args <- getArgs
                            (read $ args !! 0)
                            0
                            0
+           {-
+           appendCSVyInt (gr * (1-/2))
+                         (read $ args !! 0)
+                         0
+                         0
+                         False
+                         32 -}

@@ -59,7 +59,7 @@ fYInt n rst fn s i |  rst ^. count == n = return ()
                                              appendFile fn ((show $ mapInt s i $ rst ^. y) ++ "\n")
                                              fYInt n (go rst) fn s i
 
-appendCSVyIntBS l n sx sy =  fYIntBS n (mkRst l sx sy) ("UInt32_n-" ++ show n)
+appendCSVyIntBS l n sx sy =  fYIntBS n (mkRst l sx sy) ("UInt32_n-" ++ show n ++ ".bin")
 
 fYIntBS n rst fn |  rst ^. count == n = return ()
                  |  otherwise         = do putStrLn    (show (rst ^. count) ++ "    " ++ show cy)
