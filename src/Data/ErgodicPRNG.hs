@@ -59,14 +59,14 @@ fYInt n rst fn s i |  rst ^. count == n = return ()
                                              appendFile fn ((show $ mapInt s i $ rst ^. y) ++ "\n")
                                              fYInt n (go rst) fn s i
 
-appendCSVyIntBS l n sx sy =  fYIntBS n (mkRst l sx sy) ("UInt32_n-" ++ show n ++ ".bin")
+appendCSVyIntBS l n sx sy =  fYIntBS n (mkRst l sx sy) ("UInt32_n-" ++ show n ++ ".bin") 0
 
-fYIntBS n rst fn |  rst ^. count == n = return ()
-                 |  otherwise         = do putStrLn    (show (rst ^. count) ++ "    " ++ show cy)
-                                           BS.appendFile fn (encode cy)
-                                           fYIntBS n (go rst) fn
-                                           where cy :: Word32
-                                                 cy =  mapInt False 32 $ rst ^. y
+fYIntBS n rst fn c |  rst ^. count == n = return ()
+                   |  otherwise         = do print c
+                                             BS.appendFile fn (encode cy)
+                                             fYIntBS n (go rst) fn (c + 1)
+                                             where cy :: Word32
+                                                   cy =  mapInt False 32 $ rst ^. y
 
 appendCSVyFloat l n sx sy =  fYFloat n (mkRst l sx sy) ("Float_" ++ fn n sx sy)
 
