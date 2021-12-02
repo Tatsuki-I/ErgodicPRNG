@@ -32,8 +32,7 @@ library
   hs-source-dirs:
       src
   build-depends:
-      ansi-terminal
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , binary
     , bytestring
     , lens
@@ -49,7 +48,6 @@ executable ErgodicPRNG
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ErgodicPRNG
-    , ansi-terminal
     , base >=4.7 && <5
     , binary
     , bytestring
@@ -67,7 +65,6 @@ test-suite ErgodicPRNG-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ErgodicPRNG
-    , ansi-terminal
     , base >=4.7 && <5
     , binary
     , bytestring

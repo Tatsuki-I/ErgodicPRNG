@@ -25,7 +25,6 @@ dependencies:
 - lens
 - bytestring
 - binary
-- ansi-terminal
 
 library:
   source-dirs: src

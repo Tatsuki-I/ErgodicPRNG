@@ -9,10 +9,6 @@ import           Data.Ratio
 import           Data.Word       ( Word32 )
 import           Control.Lens    ( (^.)
                                  , makeLenses )
-import           System.Console.ANSI ( clearLine
-                                     , clearScreen
-                                     , clearFromCursorToScreenBeginning )
-
 
 data RState = RState { _x     :: Root
                      , _y     :: Root
