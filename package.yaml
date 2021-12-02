@@ -28,7 +28,7 @@ library:
   source-dirs: src
 
 executables:
-  ErgodicPRNG-exe:
+  ErgodicPRNG:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
