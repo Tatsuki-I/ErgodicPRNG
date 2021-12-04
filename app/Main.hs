@@ -1,19 +1,13 @@
 module Main where
 
 import System.Environment ( getArgs )
-import Data.ErgodicPRNG
+import System.Random.Ergodic
 import Data.Root
 
 main :: IO ()
 main =  do args <- getArgs
-           appendCSVyIntBS (gr * (1-/2))
-                           (read $ args !! 0)
-                           0
-                           0
-           {-
-           appendCSVyInt (gr * (1-/2))
-                         (read $ args !! 0)
-                         0
-                         0
-                         False
-                         32 -}
+           putStrLn $ "Length is " ++ show (args !! 1)
+           putStrLn $ "Seed is "   ++ show (args !! 0)
+           exportData (read $ args !! 1)
+                      (read $ args !! 0)
+                      False

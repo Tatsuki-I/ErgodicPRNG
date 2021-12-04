@@ -25,6 +25,9 @@ dependencies:
 - lens
 - bytestring
 - binary
+- htestu
+- random
+- mwc-random
 
 library:
   source-dirs: src
@@ -33,6 +36,16 @@ executables:
   ErgodicPRNG:
     main:                Main.hs
     source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ErgodicPRNG
+
+  ErgodicPRNGTestU01:
+    main:                Main.hs
+    source-dirs:         app/testu01
     ghc-options:
     - -threaded
     - -rtsopts
