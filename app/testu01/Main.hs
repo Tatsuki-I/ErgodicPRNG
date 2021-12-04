@@ -2,16 +2,25 @@ module Main where
 
 import Test.HTestU
 import System.Random.Ergodic
-import System.Random         ( randoms )
+import System.Random
+import Test.HTestU.Streaming (nextStreamFromGen)
+import Test.HTestU.Wrapping  (Battery)
+
+runCrush :: (RandomGen g) => Battery -> IO g -> IO [TestResult]
+runCrush crush gen = (\g -> runBatteryToResults nextStreamFromGen g crush ) `fmap` gen
+
+runSmallCrushStd :: IO [TestResult]
+runSmallCrushStd =  runCrush c_smallCrush newStdGen
+
+runSmallCrushErgo :: IO [TestResult]
+runSmallCrushErgo =  runCrush c_smallCrush getErgoGen
 
 main :: IO ()
-main =  do print "Hello"
-           print $ take 100 rs
-           print ds
-           print (toResults ds)
-           where ds = runBattery (System.Random.randoms) (mkErgoGen 111) c_crush
-           -- where ds = runBattery (System.Random.randoms) (mkErgoGen 111) c_bigCrush
-                 rs :: [Int]
-                 rs =  System.Random.randoms (mkErgoGen 111)
+main =  do rStd <- runSmallCrushStd
+           putStrLn "Standard"
+           putStrLn $ show rStd
+           rErgo <- runSmallCrushErgo
+           putStrLn "Ergodic"
+           putStrLn $ show rErgo
 
 

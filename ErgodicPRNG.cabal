@@ -36,7 +36,6 @@ library
     , binary
     , bytestring
     , htestu
-    , lens
     , mwc-random
     , primes
     , random
@@ -55,7 +54,6 @@ executable ErgodicPRNG
     , binary
     , bytestring
     , htestu
-    , lens
     , mwc-random
     , primes
     , random
@@ -74,7 +72,6 @@ executable ErgodicPRNGTestU01
     , binary
     , bytestring
     , htestu
-    , lens
     , mwc-random
     , primes
     , random
@@ -94,7 +91,6 @@ test-suite ErgodicPRNG-test
     , binary
     , bytestring
     , htestu
-    , lens
     , mwc-random
     , primes
     , random

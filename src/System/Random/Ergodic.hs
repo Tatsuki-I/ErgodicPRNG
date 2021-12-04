@@ -3,17 +3,25 @@
 module System.Random.Ergodic where
 
 import qualified Data.ByteString.Lazy as BS
-import           System.Random   ( RandomGen ()
-                                 , genWord32
-                                 , split )
-import           Data.Root
-import           Data.Binary     ( encode )
-import           Data.Ratio
-import           Data.Word       ( Word32 )
-import           Data.Function   ( (&) )
-import           Data.Bits       ( shiftL
-                                 , shiftR
-                                 , xor )
+import           System.Random           ( RandomGen ()
+                                         , genWord32
+                                         , split )
+import           Data.Root               ( Root ()
+                                         , (-/)
+                                         , modRoot
+                                         , divRoot
+                                         , oddRoot
+                                         , evenRoot
+                                         , toFloating
+                                         , gr )
+import           Data.Binary             ( encode )
+import           Data.Ratio              ( (%) )
+import           Data.Word               ( Word32 )
+import           Data.Function           ( (&) )
+import           Data.Bits               ( shiftL
+                                         , shiftR
+                                         , xor )
+import           System.CPUTime          ( getCPUTime )
 
 data Ergodic = Ergodic Root Bool
 
@@ -25,6 +33,10 @@ instance RandomGen Ergodic where
 
 -- move length = gr * (1 -/2)
 -- -> lx * (1 -/2)
+
+getErgoGen :: IO Ergodic
+getErgoGen =  do cpu <- getCPUTime
+                 return (mkErgoGen (fromIntegral cpu))
 
 mkErgoGen      :: Int -> Ergodic
 mkErgoGen seed =  Ergodic ((abs (xorshift seed) % maxBound) -/ 1)
