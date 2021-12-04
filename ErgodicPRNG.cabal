@@ -47,7 +47,7 @@ executable ErgodicPRNG
       Paths_ErgodicPRNG
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       ErgodicPRNG
     , base >=4.7 && <5
@@ -65,7 +65,7 @@ executable ErgodicPRNGTestU01
       Paths_ErgodicPRNG
   hs-source-dirs:
       app/testu01
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       ErgodicPRNG
     , base >=4.7 && <5
