@@ -10,4 +10,4 @@ main =  do args <- getArgs
            putStrLn $ "Seed is "   ++ show (args !! 0)
            exportData (read $ args !! 1)
                       (read $ args !! 0)
-                      False
+                      True

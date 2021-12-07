@@ -2,6 +2,7 @@ module Data.Root ( Root
                  , (-/)
                  , toFloating
                  , gr
+                 , sr
                  , divRoot
                  , modRoot
                  , evenRoot
@@ -119,8 +120,11 @@ toFloating :: Floating a => Root -> a
 toFloating              Zero =  0
 toFloating ((c :-/ r) :+ rs) =  fromRational c * sqrt (fromIntegral $ product r) + toFloating rs
 
-gr :: Root
+gr :: Root -- ^ Golden Ratio
 gr =  ((1 % 2) -/ 1) + ((1 % 2) -/ 5)
+
+sr :: Root -- ^ Silver Ratio
+sr =  1 -/2
 
 divRoot     :: Root -> Root -> Root
 divRoot a b |  a >= b = 1 + divRoot (a - b) b
@@ -128,7 +132,7 @@ divRoot a b |  a >= b = 1 + divRoot (a - b) b
 
 modRoot     :: Root -> Root -> Root
 modRoot a b |  a == b = Zero
-            |  a >= b = modRoot (a - b) b
+            |  a >  b = modRoot (a - b) b
             |  a < b  = a
 
 evenRoot   :: Root -> Bool

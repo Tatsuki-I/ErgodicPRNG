@@ -13,15 +13,73 @@ import           Data.Root               ( Root ()
                                          , oddRoot
                                          , evenRoot
                                          , toFloating
-                                         , gr )
+                                         , gr
+                                         , sr )
 import           Data.Binary             ( encode )
-import           Data.Ratio              ( (%) )
+import           Data.Ratio              ( (%)
+                                         , numerator
+                                         , denominator )
 import           Data.Word               ( Word32 )
 import           Data.Function           ( (&) )
 import           Data.Bits               ( shiftL
                                          , shiftR
                                          , xor )
 import           System.CPUTime          ( getCPUTime )
+
+data Root2 = Root2 Rational
+                   Rational
+                   deriving ( Eq )
+
+rt2 :: Rational
+rt2 =  1.414213562373095048
+
+instance Show Root2 where
+    show (Root2 0 0) = "0"
+    show (Root2 0 b) = "(" ++ show (numerator b) ++ " -/2) % " ++ show (denominator b)
+    show (Root2 a 0) = show a
+    show (Root2 a b) = show a ++ " + (" ++ show (numerator b) ++ " -/2) % " ++ show (denominator b)
+
+instance Num Root2 where
+    (Root2 na da) + (Root2 nb db) = Root2 (na + nb) (da + db)
+
+    (Root2 na da) * (Root2 nb db) = Root2 (na * nb + 2 * da * db) (na * db + nb * da)
+
+    signum r | fr > 0    =  1
+             | fr < 0    = -1
+             | otherwise =  0
+               where fr = toFloatingRoot2 r
+
+    negate (Root2 a b) = Root2 (-a) (-b)
+
+    abs r = r * signum r
+
+    fromInteger a = Root2 (a % 1) 0
+
+toFloatingRoot2 :: Floating a => Root2 -> a
+toFloatingRoot2 (Root2 a b) =  fromRational $ a * b * rt2
+
+instance Ord Root2 where
+    compare a b |  a == b              = EQ
+                |  signum (a - b) == 1 = GT
+                |  otherwise           = LT
+
+divRoot2     :: Root2 -> Root2 -> Root2
+divRoot2 a b |  a >= b = 1 + divRoot2 (a - b) b
+             |  a <  b = 0
+
+modRoot2     :: Root2 -> Root2 -> Root2
+modRoot2 a b |  a == b = Root2 0 0
+             |  a >  b = modRoot2 (a - b) b
+             |  a <  b = a
+
+evenRoot2   :: Root2 -> Bool
+evenRoot2 r =  (r `modRoot2` 2) == 0
+
+oddRoot2   :: Root2 -> Bool
+oddRoot2 r =  not (evenRoot2 r)
+
+sr' :: Root2
+sr' = Root2 0 1
 
 data Ergodic = Ergodic Root Bool
 
@@ -57,11 +115,16 @@ s1 = (1 % 2) -/ 1
 s2 = (1 % 2) -/ 1
 
 lx :: Root
-lx =  gr
+lx =  sr
 ly :: Root
 ly =  1
 
 re = ((3 % 2) -/1) + ((-1 % 2) -/5) -- 1/2.618
+
+exRaw                     :: Int -> Ergodic -> [Root]
+exRaw 0 s                 =  []
+exRaw n gen@(Ergodic s b) =  ns : exRaw (n - 1) ngen
+                             where ngen@(Ergodic ns _) = go gen
 
 exportData     :: (Eq a, Show a, Num a)
                => a    -- ^ Number of Random Numbers
