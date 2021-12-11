@@ -35,8 +35,12 @@ library
       base >=4.7 && <5
     , binary
     , bytestring
+    , cryptonite
+    , entropy
+    , hosc
     , htestu
     , mwc-random
+    , network-transport
     , primes
     , random
   default-language: Haskell2010
@@ -53,8 +57,12 @@ executable ErgodicPRNG
     , base >=4.7 && <5
     , binary
     , bytestring
+    , cryptonite
+    , entropy
+    , hosc
     , htestu
     , mwc-random
+    , network-transport
     , primes
     , random
   default-language: Haskell2010
@@ -71,8 +79,12 @@ executable ErgodicPRNGTestU01
     , base >=4.7 && <5
     , binary
     , bytestring
+    , cryptonite
+    , entropy
+    , hosc
     , htestu
     , mwc-random
+    , network-transport
     , primes
     , random
   default-language: Haskell2010
@@ -90,8 +102,12 @@ test-suite ErgodicPRNG-test
     , base >=4.7 && <5
     , binary
     , bytestring
+    , cryptonite
+    , entropy
+    , hosc
     , htestu
     , mwc-random
+    , network-transport
     , primes
     , random
   default-language: Haskell2010

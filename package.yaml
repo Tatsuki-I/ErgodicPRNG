@@ -27,6 +27,10 @@ dependencies:
 - htestu
 - random
 - mwc-random
+- cryptonite
+- entropy
+- network-transport
+- hosc
 
 library:
   source-dirs: src
