@@ -1,4 +1,4 @@
-module System.Random.Ergodic where
+module System.Random.Ergodic2 where
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Internal as BI
@@ -6,9 +6,7 @@ import           System.Random           ( RandomGen ()
                                          , genWord32
                                          , split )
 import           Data.Binary             ( encode )
-import           Data.Ratio              ( (%)
-                                         , numerator
-                                         , denominator )
+import           Data.Ratio              ( (%) )
 import           Data.Word               ( Word8
                                          , Word32 )
 import           Data.Function           ( (&) )
@@ -22,38 +20,54 @@ import           System.Entropy          ( getHardwareEntropy
 import           Network.Transport.Internal ( decodeWord32 )
 import           GHC.Real                ( divZeroError )
 
-data Root2 = Root2 Rational
-                   Rational
+data Root2 = Root2 Rational'
+                   Rational'
                    deriving ( Eq )
 
 data Rational' = Integer :%% Integer
+                 deriving ( Show
+                          , Eq )
 
 (%%)   :: Integer -> Integer -> Rational'
-a %% b |  b >  1 = a          :%% b
-       |  b <  1 = (negate a) :%% (negate b)
+a %% b |  b >  0 = a          :%% b
+       |  b <  0 = (negate a) :%% (negate b)
        |  b == 0 = divZeroError
 
 -- *** Exception: Ratio has zero denominator
 instance Num Rational' where
     (a :%% b) + (c :%% d) = (a * d + b * c) %% (b * d)
-    (a :%% b) * (c :%% d) = (a * b) %% (c * d)
+    (a :%% b) * (c :%% d) = (a * c) %% (b * d)
 
     negate (a :%% b) = (- a) %% b
 
-    signum (a :%% b) | a > 1     =   1
-                     | a < 1     = - 1
+    signum (a :%% b) | a > 0     =   1
+                     | a < 0     = - 1
                      | otherwise =   0
 
-    abs r@(a :%% b) | a >= 1    = r
+    abs r@(a :%% b) | a >= 0    = r
                     | otherwise = negate r
 
-    fromInteger a = a :%% 1
+    fromInteger a = a %% 1
 
-rt2' :: Rational'
-rt2' =  7 %% 5
+numerator           :: Rational' -> Integer
+numerator (a :%% _) =  a
 
-rt2 :: Rational
-rt2 =  1.4
+denominator           :: Rational' -> Integer
+denominator (_ :%% b) =  b
+
+instance Ord Rational' where
+    compare a b | a == b              = EQ
+                | signum (a - b) == 1 = GT
+                | otherwise           = LT
+
+instance Real Rational' where
+    toRational (a :%% b) =  a % b
+
+rt2 :: Rational'
+rt2 =  7 %% 5
+
+-- rt2 :: Rational
+-- rt2 =  1.4
 
 -- rt2 :: Rational
 -- rt2 =  1.414213562373095048
@@ -78,10 +92,15 @@ instance Num Root2 where
 
     abs r = r * signum r
 
-    fromInteger a = Root2 (a % 1) 0
+    fromInteger a = Root2 (fromInteger a) 0
+
+toW32Root2             :: Root2 -> Word32
+toW32Root2 (Root2 a b) =  fromInteger (n `div` d)
+                          where mbW32 = 4294967295
+                                (n :%% d) = (a + b * rt2) * mbW32
 
 toFloatingRoot2             :: Floating a => Root2 -> a
-toFloatingRoot2 (Root2 a b) =  fromRational $ a + b * rt2
+toFloatingRoot2 (Root2 a b) =  fromRational $ toRational $ a + b * rt2
 
 instance Ord Root2 where
     compare a b |  a == b              = EQ
@@ -106,26 +125,22 @@ oddRoot2 r =  not (evenRoot2 r)
 sr' :: Root2
 sr' =  Root2 0 1
 
-data Ergodic = Ergodic Root2
-                       Bool
-                       deriving ( Show )
-
-instance RandomGen Ergodic where
-    genWord32 gen = ((mapIntRoot2 False 32 s), ngen)
-                    where ngen@(Ergodic s _) = go gen
+instance RandomGen Root2 where
+    genWord32 gen = (toW32Root2 ngen, ngen)
+    --genWord32 gen = ((mapIntRoot2 False 32 s), ngen)
+                    where ngen = go gen
 
 --    split gen = (gen, gen)
 
 -- move length = gr * (1 -/2)
 -- -> lx * (1 -/2)
 
-getErgoGen :: IO Ergodic
+getErgoGen :: IO Root2
 getErgoGen =  do cpu <- getCPUTime
                  return (mkErgoGen (fromIntegral cpu))
 
-mkErgoGen      :: Int -> Ergodic
-mkErgoGen seed =  Ergodic (Root2 (toInteger (abs (xorshift seed)) % maxBoundInt) 0)
-                          True
+mkErgoGen      :: Int -> Root2
+mkErgoGen seed =  Root2 (toInteger (abs (xorshift seed)) %% maxBoundInt) 0
 
 maxBoundInt :: Integer
 maxBoundInt =  toInteger (maxBound :: Int)
@@ -152,10 +167,10 @@ w32Randoms n s =  f' n s (mkErgoGen s)
                         f' n s gen =  w : f' (n-1) s ngen
                                       where (w, ngen) = genWord32 gen
 
-exRaw                     :: Int -> Ergodic -> [Root2]
-exRaw 0 s                 =  []
-exRaw n gen@(Ergodic s b) =  ns : exRaw (n - 1) ngen
-                             where ngen@(Ergodic ns _) = go gen
+exRaw                     :: Int -> Root2 -> [Root2]
+exRaw 0 _   =  []
+exRaw n gen =  ngen : exRaw (n - 1) ngen
+               where ngen = go gen
 
 exportData     :: (Eq a, Show a, Num a)
                => a    -- ^ Number of Random Numbers
@@ -202,6 +217,9 @@ mapIntRoot2 s i r =  floor (toFloatingRoot2 (r * mb s i))
                            mb False 32 =  4294967295
                            mb False 64 =  18446744073709551615
 
+go                    :: Root2 -> Root2
+go gen = (gen + lx) `modRoot2` 1
+                                         {-
 go                    :: Ergodic -> Ergodic
 go (Ergodic seed cby) =  Ergodic ny nby
                          where ln        = lx
@@ -215,7 +233,6 @@ go (Ergodic seed cby) =  Ergodic ny nby
                                                             ly)  = ((ly - seed + ln) `modRoot2` ly,  True)
                                          | otherwise             = (ly - ((ly - seed + ln) `modRoot2` ly),  False)
 
-{-
 go     :: Ergodic -> Ergodic
 go rst =  rst { _x     = nx
               , _y     = ny
