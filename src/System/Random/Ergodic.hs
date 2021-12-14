@@ -21,42 +21,11 @@ import           System.Entropy          ( getHardwareEntropy
                                          , getEntropy )
 import           Network.Transport.Internal ( decodeWord32 )
 import           GHC.Real                ( divZeroError )
+import           Data.Root
 
 data Root2 = Root2 Rational
-                   Rational
+                   Rational -- Rational Term of -/2
                    deriving ( Eq )
-
-data Rational' = Integer :%% Integer
-
-(%%)   :: Integer -> Integer -> Rational'
-a %% b |  b >  1 = a          :%% b
-       |  b <  1 = (negate a) :%% (negate b)
-       |  b == 0 = divZeroError
-
--- *** Exception: Ratio has zero denominator
-instance Num Rational' where
-    (a :%% b) + (c :%% d) = (a * d + b * c) %% (b * d)
-    (a :%% b) * (c :%% d) = (a * b) %% (c * d)
-
-    negate (a :%% b) = (- a) %% b
-
-    signum (a :%% b) | a > 1     =   1
-                     | a < 1     = - 1
-                     | otherwise =   0
-
-    abs r@(a :%% b) | a >= 1    = r
-                    | otherwise = negate r
-
-    fromInteger a = a :%% 1
-
-rt2' :: Rational'
-rt2' =  7 %% 5
-
-rt2 :: Rational
-rt2 =  1.4
-
--- rt2 :: Rational
--- rt2 =  1.414213562373095048
 
 instance Show Root2 where
     show (Root2 0 0) = "0"
@@ -103,29 +72,25 @@ evenRoot2 r =  (r `modRoot2` 2) == 0
 oddRoot2   :: Root2 -> Bool
 oddRoot2 r =  not (evenRoot2 r)
 
-sr' :: Root2
-sr' =  Root2 0 1
+rt2 :: Rational
+rt2 =  1.414213562373095048
 
-data Ergodic = Ergodic Root2
-                       Bool
-                       deriving ( Show )
-
-instance RandomGen Ergodic where
-    genWord32 gen = ((mapIntRoot2 False 32 s), ngen)
-                    where ngen@(Ergodic s _) = go gen
+instance RandomGen Root where
+    genWord32 gen = ((mapInt False 32 ngen), ngen)
+                    where ngen = go gen
 
 --    split gen = (gen, gen)
 
 -- move length = gr * (1 -/2)
 -- -> lx * (1 -/2)
 
-getErgoGen :: IO Ergodic
+getErgoGen :: IO Root
 getErgoGen =  do cpu <- getCPUTime
                  return (mkErgoGen (fromIntegral cpu))
 
-mkErgoGen      :: Int -> Ergodic
-mkErgoGen seed =  Ergodic (Root2 (toInteger (abs (xorshift seed)) % maxBoundInt) 0)
-                          True
+mkErgoGen      :: Int -> Root
+mkErgoGen seed =  (toRational (seed % maxBound)) -/1
+--mkErgoGen seed =  Root2 (toInteger (abs (xorshift seed)) % maxBoundInt) 0
 
 maxBoundInt :: Integer
 maxBoundInt =  toInteger (maxBound :: Int)
@@ -141,9 +106,10 @@ xorshift s =  s & (\v -> (v `shiftL` 23) `xor` v)
                 & (\v -> (v `shiftR` 13) `xor` v)
                 & (\v -> (v `shiftL` 58) `xor` v)
 
-lx :: Root2
-lx =  sr'
-ly :: Root2
+lx :: Root
+lx =  ((1 % 2) -/1) + ((1 % 2) -/5)
+
+ly :: Root
 ly =  1
 
 w32Randoms     :: Int -> Int -> [Word32]
@@ -152,10 +118,10 @@ w32Randoms n s =  f' n s (mkErgoGen s)
                         f' n s gen =  w : f' (n-1) s ngen
                                       where (w, ngen) = genWord32 gen
 
-exRaw                     :: Int -> Ergodic -> [Root2]
-exRaw 0 s                 =  []
-exRaw n gen@(Ergodic s b) =  ns : exRaw (n - 1) ngen
-                             where ngen@(Ergodic ns _) = go gen
+exRaw        :: Int -> Root -> [Root]
+exRaw 0 _    =  []
+exRaw n seed =  ns : exRaw (n - 1) ns
+                             where ns = go seed
 
 exportData     :: (Eq a, Show a, Num a)
                => a    -- ^ Number of Random Numbers
@@ -164,7 +130,7 @@ exportData     :: (Eq a, Show a, Num a)
                -> IO ()
 exportData n s =  export' ("UInt32_n-" ++ show n) 0 n (mkErgoGen s)
 
-export'                :: (Eq a, Show a, Num a, RandomGen b)
+export'                :: (Eq a, Show a, Num a, RandomGen b, Show b)
                        => FilePath
                        -> a
                        -> a
@@ -177,7 +143,7 @@ export' fn c n gen csv |  c == n    = return ()
                                       where e1 n gen fn c |  c == n    = return ()
                                                           |  otherwise = do putStrLn (show (c + 1) ++ " / " ++ show n)
                                                                             BS.appendFile (fn ++ ".bin") (encode r)
-                                                                            appendFile    (fn ++ ".csv") (show r ++ "\n")
+                                                                            appendFile    (fn ++ ".csv") (show r ++ ", " ++ show ngen ++ "\n")
                                                                             e1 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
                                             e2 n gen fn c |  c == n    = return ()
@@ -186,67 +152,24 @@ export' fn c n gen csv |  c == n    = return ()
                                                                             e2 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
 
-mapIntRoot2        :: Integral a
-                   => Bool       -- ^ Signed
-                   -> Int        -- ^ Bits
-                   -> Root2
-                   -> a
-mapIntRoot2 s i r =  floor (toFloatingRoot2 (r * mb s i))
-                     where mb         :: Bool -> Int -> Root2
-                           mb True  8  =  127
-                           mb True  16 =  32767
-                           mb True  32 =  2147483647
-                           mb True  64 =  9223372036854775807
-                           mb False 8  =  255
-                           mb False 16 =  65535
-                           mb False 32 =  4294967295
-                           mb False 64 =  18446744073709551615
+mapInt        :: Integral a
+              => Bool       -- ^ Signed
+              -> Int        -- ^ Bits
+              -> Root
+              -> a
+mapInt s i r =  floor (toFloating (r * mb s i))
+                where mb         :: Bool -> Int -> Root
+                      mb True  8  =  127
+                      mb True  16 =  32767
+                      mb True  32 =  2147483647
+                      mb True  64 =  9223372036854775807
+                      mb False 8  =  255
+                      mb False 16 =  65535
+                      mb False 32 =  4294967295
+                      mb False 64 =  18446744073709551615
 
-go                    :: Ergodic -> Ergodic
-go (Ergodic seed cby) =  Ergodic ny nby
-                         where ln        = lx
-                               (ny, nby) | cby && -- Y is not inversed
-                                           evenRoot2 (divRoot2 (seed + ln) -- Y will not inverse
-                                                             ly) = ((seed + ln) `modRoot2` ly,  True)
-                                         | cby  -- X is not inversed
-                                                                 = (ly - ((seed + ln) `modRoot2` ly), False)
-                                         | not cby && -- X is inversed
-                                           oddRoot2 (divRoot2 (ly - seed + ln) -- X will not inverse
-                                                            ly)  = ((ly - seed + ln) `modRoot2` ly,  True)
-                                         | otherwise             = (ly - ((ly - seed + ln) `modRoot2` ly),  False)
-
-{-
-go     :: Ergodic -> Ergodic
-go rst =  rst { _x     = nx
-              , _y     = ny
-              , _bx    = nbx
-              , _by    = nby
-              , _count = rst ^. count + 1 }
-          where --ln  = (rst ^. l) * ((1 % 2) -/ 2)
-                ln  = (lx * (1 -/ 2)) * ((1 % 2) -/ 2)
-                cx  = rst ^. x  -- current x
-                cy  = rst ^. y  -- current y
-                cbx = rst ^. bx -- current x bool
-                cby = rst ^. by -- current y bool
-                (nx, nbx) | cbx && -- X is not inversed
-                            evenRoot (divRoot (cx + ln) -- X will not inverse
-                                              (lx)) = ((cx + ln) `modRoot` lx,  True)
-                          | cbx  -- X is not inversed
-                                                    = (lx - ((cx + ln) `modRoot` lx), False)
-                          | not cbx && -- X is inversed
-                            oddRoot (divRoot (lx - cx + ln) -- X will not inverse
-                                             (lx))  = ((lx - cx + ln) `modRoot` lx,  True)
-                          | otherwise               = (lx - ((lx - cx + ln) `modRoot` lx),  False)
-                (ny, nby) | cby && -- Y is not inversed
-                            evenRoot (divRoot (cy + ln) -- Y will not inverse
-                                              (ly)) = ((cy + ln) `modRoot` ly,  True)
-                          | cby  -- X is not inversed
-                                                    = (ly - ((cy + ln) `modRoot` ly), False)
-                          | not cby && -- X is inversed
-                            oddRoot (divRoot (ly - cy + ln) -- X will not inverse
-                                             (ly))  = ((ly - cy + ln) `modRoot` ly,  True)
-                          | otherwise               = (ly - ((ly - cy + ln) `modRoot` ly),  False)
--}
+go      :: Root -> Root
+go seed =  (seed + lx) `modRoot` ly
 
 fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
                    print $ w8ToW32 $ BI.unpackBytes s
