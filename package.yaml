@@ -31,6 +31,8 @@ dependencies:
 - entropy
 - network-transport
 - hosc
+- parallel
+- wide-word
 
 library:
   source-dirs: src

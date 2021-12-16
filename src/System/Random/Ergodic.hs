@@ -21,76 +21,127 @@ import           System.Entropy          ( getHardwareEntropy
                                          , getEntropy )
 import           Network.Transport.Internal ( decodeWord32 )
 import           GHC.Real                ( divZeroError )
+import           Control.Parallel.Strategies ( rpar
+                                             , runEval )
 import           Data.Root
+import           Data.WideWord           ( Word256 )
 
-data Root2 = Root2 Rational
+data RootX = RootX Rational
                    Rational -- Rational Term of -/2
                    deriving ( Eq )
 
-instance Show Root2 where
-    show (Root2 0 0) = "0"
-    show (Root2 0 b) = "(" ++ show (numerator b) ++ " -/2) % " ++ show (denominator b)
-    show (Root2 a 0) = show a
-    show (Root2 a b) = show a ++ " + (" ++ show (numerator b) ++ " -/2) % " ++ show (denominator b)
+data ParErgo = ParErgo [Word32]
+                       ( RootX
+                       , RootX
+                       , RootX
+                       , RootX )
+                       deriving ( Show )
 
-instance Num Root2 where
-    (Root2 a b) + (Root2 c d) = Root2 (a + c) (b + d)
+instance Show RootX where
+    show (RootX 0 0) = "0"
+    show (RootX 0 b) = "(" ++ show (numerator b) ++ " -/X) % " ++ show (denominator b)
+    show (RootX a 0) = show a
+    show (RootX a b) = show a ++ " + (" ++ show (numerator b) ++ " -/X) % " ++ show (denominator b)
 
-    (Root2 a b) * (Root2 c d) = Root2 (a * c + 2 * b * d) (c * b + a * d)
+instance Num RootX where
+    {-# INLINE (+) #-}
+    (RootX a b) + (RootX c d) = RootX (a + c) (b + d)
 
+    {-# INLINE (*) #-}
+    (RootX a b) * (RootX c d) = RootX (a * c + 2 * b * d) (c * b + a * d)
+
+    {-# INLINE signum #-}
     signum r | fr > 0    =  1
              | fr < 0    = -1
              | otherwise =  0
-               where fr = toFloatingRoot2 r
+               where fr = toFloatingRootX r
 
-    negate (Root2 a b) = Root2 (-a) (-b)
+    {-# INLINE negate #-}
+    negate (RootX a b) = RootX (-a) (-b)
 
+    {-# INLINE abs #-}
     abs r = r * signum r
 
-    fromInteger a = Root2 (a % 1) 0
+    {-# INLINE fromInteger #-}
+    fromInteger a = RootX (a % 1) 0
 
-toFloatingRoot2             :: Floating a => Root2 -> a
-toFloatingRoot2 (Root2 a b) =  fromRational $ a + b * rt2
+{-# INLINE toFloatingRootX #-}
+toFloatingRootX             :: Floating a => RootX -> a
+toFloatingRootX (RootX a b) =  fromRational $ a + b * rtX
 
-instance Ord Root2 where
+instance Ord RootX where
     compare a b |  a == b              = EQ
                 |  signum (a - b) == 1 = GT
                 |  otherwise           = LT
 
-divRoot2     :: Root2 -> Root2 -> Root2
-divRoot2 a b |  a >= b = 1 + divRoot2 (a - b) b
+{-# INLINE divRootX #-}
+divRootX     :: RootX -> RootX -> RootX
+divRootX a b |  a >= b = 1 + divRootX (a - b) b
              |  a <  b = 0
 
-modRoot2     :: Root2 -> Root2 -> Root2
-modRoot2 a b |  a == b = Root2 0 0
-             |  a >  b = modRoot2 (a - b) b
+{-# INLINE modRootX #-}
+modRootX     :: RootX -> RootX -> RootX
+modRootX a b |  a == b = RootX 0 0
+             |  a >  b = modRootX (a - b) b
              |  a <  b = a
 
-evenRoot2   :: Root2 -> Bool
-evenRoot2 r =  (r `modRoot2` 2) == 0
-
-oddRoot2   :: Root2 -> Bool
-oddRoot2 r =  not (evenRoot2 r)
+rt5 :: Rational
+rt5 =  2.236067977499789696 -- -/5
 
 rt2 :: Rational
 rt2 =  1.414213562373095048
 
-instance RandomGen Root where
-    genWord32 gen = ((mapInt False 32 ngen), ngen)
-                    where ngen = go gen
+rtX :: Rational
+rtX = rt2
+--rtX =  2.2
+
+instance RandomGen ParErgo where
+    genWord32 (ParErgo [] ( r1
+                          , r2
+                          , r3
+                          , r4 )) = runEval $ do (r1', gen1) <- rpar (mapIntRootX False 32 $ go r1, go r1)
+                                                 (r2', gen2) <- rpar (mapIntRootX False 32 $ go r2, go r2)
+                                                 (r3', gen3) <- rpar (mapIntRootX False 32 $ go r3, go r3)
+                                                 (r4', gen4) <- rpar (mapIntRootX False 32 $ go r4, go r4)
+                                                 return (r1', ParErgo [ r2'
+                                                                      , r3'
+                                                                      , r4']
+                                                                      ( gen1
+                                                                      , gen2
+                                                                      , gen3
+                                                                      , gen4 ))
+    genWord32 (ParErgo (x : xs) gen) = (x, ParErgo xs gen)
+
+instance RandomGen RootX where
+    -- genWord32 gen = runEval $ do r    <- rpar $ mapIntRootX False 32 gen
+    --                              ngen <- rpar $ go gen
+    --                              return (r, ngen)
+    genWord32 gen = ((mapIntRootX False 32 gen), go gen)
 
 --    split gen = (gen, gen)
 
 -- move length = gr * (1 -/2)
 -- -> lx * (1 -/2)
 
-getErgoGen :: IO Root
+genWord256 gen = ((mapIntRootX False 256 gen), go gen)
+
+getErgoGen :: IO RootX
 getErgoGen =  do cpu <- getCPUTime
                  return (mkErgoGen (fromIntegral cpu))
 
-mkErgoGen      :: Int -> Root
-mkErgoGen seed =  (toRational (seed % maxBound)) -/1
---mkErgoGen seed =  Root2 (toInteger (abs (xorshift seed)) % maxBoundInt) 0
+mkParErgo      :: Int -> ParErgo
+mkParErgo seed =  ParErgo [] ( mkErgoGen s1
+                             , mkErgoGen s2
+                             , mkErgoGen s3
+                             , mkErgoGen s4)
+                  where s1 = xorshift seed
+                        s2 = xorshift s1
+                        s3 = xorshift s2
+                        s4 = xorshift s3
+
+mkErgoGen      :: Int -> RootX
+mkErgoGen seed =  RootX (toRational (seed % maxBound)) 0
+--mkErgoGen seed =  RootX (toInteger (abs (xorshift seed)) % maxBoundInt) 0
 
 maxBoundInt :: Integer
 maxBoundInt =  toInteger (maxBound :: Int)
@@ -101,24 +152,56 @@ xorshiftW32 n s =  xorshiftW32 (n - 1) (s & (\v -> (v `shiftL` 13) `xor` v)
                                           & (\v -> (v `shiftR` 17) `xor` v)
                                           & (\v -> (v `shiftL` 15) `xor` v))
 
+xorshiftW32'   :: Word32 -> Word32
+xorshiftW32' s =  s & (\v -> (v `shiftL` 13) `xor` v)
+                    & (\v -> (v `shiftR` 17) `xor` v)
+                    & (\v -> (v `shiftL` 15) `xor` v)
+
 xorshift   :: Int -> Int
 xorshift s =  s & (\v -> (v `shiftL` 23) `xor` v)
                 & (\v -> (v `shiftR` 13) `xor` v)
                 & (\v -> (v `shiftL` 58) `xor` v)
 
-lx :: Root
-lx =  ((1 % 2) -/1) + ((1 % 2) -/5)
+lx :: RootX
+lx =  RootX 0 1
+--lx =  RootX (1 % 2) (1 % 2)
+    --((1 % 2) -/1) + ((1 % 2) -/5)
 
-ly :: Root
+ly :: RootX
 ly =  1
 
+w32XorshiftSum     :: Word32 -> Word32 -> Word32
+w32XorshiftSum n s =  f' n s 0
+                      where f' 0 _ sumS = sumS
+                            f' n s sumS =  f' (n-1) ns (sumS + ns)
+                                           where ns = xorshiftW32' s
+
+w32RandomsSum     :: Int -> Int -> Word32
+w32RandomsSum n s =  f' n s (mkErgoGen s) 0
+                     where f' 0 _ _   sumS = sumS
+                           f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
+                                              where (w, ngen) = genWord32 gen
+
+w32RandomsSumP     :: Int -> Int -> Word32
+w32RandomsSumP n s =  f' n s (mkParErgo s) 0
+                      where f' 0 _ _   sumS = sumS
+                            f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
+                                               where (w, ngen) = genWord32 gen
+
 w32Randoms     :: Int -> Int -> [Word32]
-w32Randoms n s =  f' n s (mkErgoGen s)
+w32Randoms n s =  f' n s (mkParErgo s)
+--w32Randoms n s =  f' n s (mkErgoGen s)
                   where f' 0 _ _   = []
                         f' n s gen =  w : f' (n-1) s ngen
                                       where (w, ngen) = genWord32 gen
 
-exRaw        :: Int -> Root -> [Root]
+w256Randoms     :: Int -> Int -> [Word256]
+w256Randoms n s =  f' n s (mkErgoGen s)
+                   where f' 0 _ _   = []
+                         f' n s gen =  w : f' (n-1) s ngen
+                                       where (w, ngen) = genWord256 gen
+
+exRaw        :: Int -> RootX -> [RootX]
 exRaw 0 _    =  []
 exRaw n seed =  ns : exRaw (n - 1) ns
                              where ns = go seed
@@ -152,24 +235,26 @@ export' fn c n gen csv |  c == n    = return ()
                                                                             e2 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
 
-mapInt        :: Integral a
-              => Bool       -- ^ Signed
-              -> Int        -- ^ Bits
-              -> Root
-              -> a
-mapInt s i r =  floor (toFloating (r * mb s i))
-                where mb         :: Bool -> Int -> Root
-                      mb True  8  =  127
-                      mb True  16 =  32767
-                      mb True  32 =  2147483647
-                      mb True  64 =  9223372036854775807
-                      mb False 8  =  255
-                      mb False 16 =  65535
-                      mb False 32 =  4294967295
-                      mb False 64 =  18446744073709551615
+mapIntRootX        :: Integral a
+                   => Bool       -- ^ Signed
+                   -> Int        -- ^ Bits
+                   -> RootX
+                   -> a
+mapIntRootX s i r =  floor (toFloatingRootX (r * mb s i))
+                     where mb         :: Bool -> Int -> RootX
+                           mb True  8  =  127
+                           mb True  16 =  32767
+                           mb True  32 =  2147483647
+                           mb True  64 =  9223372036854775807
+                           mb False 8  =  255
+                           mb False 16 =  65535
+                           mb False 32 =  4294967295
+                           mb False 64 =  18446744073709551615
+                           mb False 256 =  115792089237316195423570985008687907853269984665640564039457584007913129639935
 
-go      :: Root -> Root
-go seed =  (seed + lx) `modRoot` ly
+{-# INLINE go #-}
+go      :: RootX -> RootX
+go seed =  (seed + lx) `modRootX` ly
 
 fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
                    print $ w8ToW32 $ BI.unpackBytes s
@@ -177,6 +262,13 @@ fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 
 w8ToW32                          :: [Word8] -> [Word32]
 w8ToW32 []                       =  []
 w8ToW32 (w1 : w2 : w3 : w4 : ws) =  w8ToW32' (w1, w2, w3, w4) : w8ToW32 ws
+
+fastRandomSum nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
+                      print $ w8ToW32Sum (BI.unpackBytes s) 0
+
+w8ToW32Sum                               :: [Word8] -> Word32 -> Word32
+w8ToW32Sum []                       sumS =  sumS
+w8ToW32Sum (w1 : w2 : w3 : w4 : ws) sumS =  w8ToW32Sum ws (sumS + w8ToW32' (w1, w2, w3, w4))
 
 w8ToW32'                  :: (Word8, Word8, Word8, Word8) -> Word32
 w8ToW32' (w1, w2, w3, w4) =  (((((w1' `shiftL` 8) .|.  w2') `shiftL` 8) .|. w3') `shiftL` 8) .|. w4'

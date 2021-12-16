@@ -41,8 +41,10 @@ library
     , htestu
     , mwc-random
     , network-transport
+    , parallel
     , primes
     , random
+    , wide-word
   default-language: Haskell2010
 
 executable ErgodicPRNG
@@ -63,8 +65,10 @@ executable ErgodicPRNG
     , htestu
     , mwc-random
     , network-transport
+    , parallel
     , primes
     , random
+    , wide-word
   default-language: Haskell2010
 
 executable ErgodicPRNGTestU01
@@ -85,8 +89,10 @@ executable ErgodicPRNGTestU01
     , htestu
     , mwc-random
     , network-transport
+    , parallel
     , primes
     , random
+    , wide-word
   default-language: Haskell2010
 
 test-suite ErgodicPRNG-test
@@ -108,6 +114,8 @@ test-suite ErgodicPRNG-test
     , htestu
     , mwc-random
     , network-transport
+    , parallel
     , primes
     , random
+    , wide-word
   default-language: Haskell2010
