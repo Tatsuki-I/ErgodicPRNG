@@ -51,10 +51,10 @@ instance Num RootX where
     (RootX a b) * (RootX c d) = RootX (a * c + 2 * b * d) (c * b + a * d)
 
     {-# INLINE signum #-}
-    signum r | fr > 0    =  1
-             | fr < 0    = -1
+    signum r | r' > 0    =  1
+             | r' < 0    = -1
              | otherwise =  0
-               where fr = toFloatingRootX r
+               where r' = toRationalRootX r
 
     {-# INLINE negate #-}
     negate (RootX a b) = RootX (-a) (-b)
@@ -66,8 +66,12 @@ instance Num RootX where
     fromInteger a = RootX (a % 1) 0
 
 {-# INLINE toFloatingRootX #-}
-toFloatingRootX             :: Floating a => RootX -> a
-toFloatingRootX (RootX a b) =  fromRational $ a + b * rtX
+toFloatingRootX :: Floating a => RootX -> a
+toFloatingRootX =  fromRational . toRationalRootX
+
+{-# INLINE toRationalRootX #-}
+toRationalRootX             :: RootX -> Rational
+toRationalRootX (RootX a b) =  a + b * rtX
 
 instance Ord RootX where
     compare a b |  a == b              = EQ
@@ -85,12 +89,38 @@ modRootX a b |  a == b = RootX 0 0
              |  a >  b = modRootX (a - b) b
              |  a <  b = a
 
+{-# INLINE sub1 #-}
+sub1               :: RootX -> RootX
+sub1 (RootX r1 r2) =  RootX (r1 - 1) r2
+
+{-# INLINE addRt2 #-}
+addRt2               :: RootX -> RootX
+addRt2 (RootX r1 r2) =  RootX r1 (r2 + 1)
+
+{-# INLINE cpRootX1 #-}
+cpRootX1           :: RootX -> Ordering
+cpRootX1 (RootX 1 _)                        = EQ
+cpRootX1 r         |  toRationalRootX r > 1 = GT
+                   |  otherwise             = LT
+
+{-# INLINE modRootX1 #-}
+modRootX1   :: RootX -> RootX
+modRootX1 a =  case cpRootX1 a of
+                    GT -> modRootX1 (sub1 a)
+                    LT -> a
+                    EQ -> RootX 0 0
+
+{-# INLINE rt5 #-}
 rt5 :: Rational
-rt5 =  2.236067977499789696 -- -/5
+-- rt5 =  2.236067977499789696 -- -/5
+rt5 = 5374978561 % 2403763488 -- Continued Fraction(n=15)
 
+{-# INLINE rt2 #-}
 rt2 :: Rational
-rt2 =  1.414213562373095048
+-- rt2 =  1.414213562373095048
+rt2 = 4478554083 % 3166815962 -- Continued Fraction(n=25)
 
+{-# INLINE rtX #-}
 rtX :: Rational
 rtX = rt2
 --rtX =  2.2
@@ -235,6 +265,7 @@ export' fn c n gen csv |  c == n    = return ()
                                                                             e2 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
 
+{-# INLINE mapIntRootX #-}
 mapIntRootX        :: Integral a
                    => Bool       -- ^ Signed
                    -> Int        -- ^ Bits
@@ -254,7 +285,8 @@ mapIntRootX s i r =  floor (toFloatingRootX (r * mb s i))
 
 {-# INLINE go #-}
 go      :: RootX -> RootX
-go seed =  (seed + lx) `modRootX` ly
+go seed =  modRootX1 (addRt2 seed)
+--go seed =  modRootX1 (seed + lx)
 
 fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
                    print $ w8ToW32 $ BI.unpackBytes s
