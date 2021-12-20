@@ -27,7 +27,7 @@ import           Data.Root
 import           Data.WideWord           ( Word256 )
 
 data RootX = RootX Rational
-                   Rational -- Rational Term of -/2
+                   Integer -- Integer Term of -/2
                    deriving ( Eq )
 
 data ParErgo = ParErgo [Word32]
@@ -38,17 +38,15 @@ data ParErgo = ParErgo [Word32]
                        deriving ( Show )
 
 instance Show RootX where
+    {-# INLINE show #-}
     show (RootX 0 0) = "0"
-    show (RootX 0 b) = "(" ++ show (numerator b) ++ " -/X) % " ++ show (denominator b)
+    show (RootX 0 b) = show b ++ " √X"
     show (RootX a 0) = show a
-    show (RootX a b) = show a ++ " + (" ++ show (numerator b) ++ " -/X) % " ++ show (denominator b)
+    show (RootX a b) = show a ++ " + " ++ show b ++ " √X"
 
 instance Num RootX where
     {-# INLINE (+) #-}
     (RootX a b) + (RootX c d) = RootX (a + c) (b + d)
-
-    {-# INLINE (*) #-}
-    (RootX a b) * (RootX c d) = RootX (a * c + 2 * b * d) (c * b + a * d)
 
     {-# INLINE signum #-}
     signum r | r' > 0    =  1
@@ -71,12 +69,14 @@ toFloatingRootX =  fromRational . toRationalRootX
 
 {-# INLINE toRationalRootX #-}
 toRationalRootX             :: RootX -> Rational
-toRationalRootX (RootX a b) =  a + b * rtX
+toRationalRootX (RootX a b) =  a + (toRational b) * rtX
 
 instance Ord RootX where
-    compare a b |  a == b              = EQ
-                |  signum (a - b) == 1 = GT
-                |  otherwise           = LT
+    compare (RootX a b)
+            (RootX c d) |  n == 0    = EQ
+                        |  n >  0    = GT
+                        |  otherwise = LT
+                           where n = (a - c) + (((b - d) % 1) * rtX)
 
 {-# INLINE divRootX #-}
 divRootX     :: RootX -> RootX -> RootX
@@ -96,9 +96,6 @@ sub1 (RootX r1 r2) =  RootX (r1 - 1) r2
 {-# INLINE addRtX #-}
 addRtX               :: RootX -> RootX
 addRtX (RootX r1 r2) =  RootX r1 (r2 + 1)
-
-addGR :: RootX -> RootX
-addGR (RootX r1 r2) =  RootX (r1 + (1 % 2)) (r2 + (1 % 2))
 
 {-# INLINE cpRootX1 #-}
 cpRootX1           :: RootX -> Ordering
@@ -155,6 +152,7 @@ instance RandomGen RootX where
 
 -- move length = gr * (1 -/2)
 -- -> lx * (1 -/2)
+genRaw gen = (gen, go gen)
 
 genWord256 gen = ((mapIntRootX False 256 gen), go gen)
 
@@ -203,11 +201,17 @@ lx =  RootX 0 1
 ly :: RootX
 ly =  1
 
-w32XorshiftSum     :: Word32 -> Word32 -> Word32
-w32XorshiftSum n s =  f' n s 0
-                      where f' 0 _ sumS = sumS
-                            f' n s sumS =  f' (n-1) ns (sumS + ns)
-                                           where ns = xorshiftW32' s
+w32XorshiftLast     :: Word32 -> Word32 -> Word32
+w32XorshiftLast n s =  f' n s 0
+                       where f' 0 _ x = x
+                             f' n s _ =  f' (n-1) ns ns
+                                            where ns = xorshiftW32' s
+
+ergoRandomsRaw     :: Int -> Int -> RootX
+ergoRandomsRaw n s =  f' n s (mkErgoGen s) 0
+                      where f' 0 _ _   x =  x
+                            f' n s gen _ =  f' (n-1) s ngen w
+                                            where (w, ngen) = genRaw gen
 
 w32RandomsSum     :: Int -> Int -> Word32
 w32RandomsSum n s =  f' n s (mkErgoGen s) 0
@@ -234,10 +238,12 @@ w256Randoms n s =  f' n s (mkErgoGen s)
                          f' n s gen =  w : f' (n-1) s ngen
                                        where (w, ngen) = genWord256 gen
 
-exRaw        :: Int -> RootX -> [RootX]
-exRaw 0 _    =  []
-exRaw n seed =  ns : exRaw (n - 1) ns
-                             where ns = go seed
+exRaw        :: Int -> Int -> [RootX]
+exRaw n seed =  f' n $ mkErgoGen seed
+                where f'       :: Int -> RootX -> [RootX]
+                      f' 0  _  =  []
+                      f' n' s' =  ns : f' (n' - 1) ns
+                                  where ns = go s'
 
 exportData     :: (Eq a, Show a, Num a)
                => a    -- ^ Number of Random Numbers
@@ -269,21 +275,21 @@ export' fn c n gen csv |  c == n    = return ()
                                                                             where (r, ngen) =  genWord32 gen
 
 {-# INLINE mapIntRootX #-}
-mapIntRootX        :: Integral a
-                   => Bool       -- ^ Signed
-                   -> Int        -- ^ Bits
-                   -> RootX
-                   -> a
-mapIntRootX s i r =  floor (toFloatingRootX (r * mb s i))
-                     where mb         :: Bool -> Int -> RootX
-                           mb True  8  =  127
-                           mb True  16 =  32767
-                           mb True  32 =  2147483647
-                           mb True  64 =  9223372036854775807
-                           mb False 8  =  255
-                           mb False 16 =  65535
-                           mb False 32 =  4294967295
-                           mb False 64 =  18446744073709551615
+mapIntRootX       :: Integral a
+                  => Bool       -- ^ Signed
+                  -> Int        -- ^ Bits
+                  -> RootX
+                  -> a
+mapIntRootX s i r =  floor ((toFloatingRootX r) * (mb s i))
+                     where mb           :: Floating a => Bool -> Int -> a
+                           mb True  8   =  127
+                           mb True  16  =  32767
+                           mb True  32  =  2147483647
+                           mb True  64  =  9223372036854775807
+                           mb False 8   =  255
+                           mb False 16  =  65535
+                           mb False 32  =  4294967295
+                           mb False 64  =  18446744073709551615
                            mb False 256 =  115792089237316195423570985008687907853269984665640564039457584007913129639935
 
 {-# INLINE go #-}
@@ -302,9 +308,9 @@ w8ToW32 (w1 : w2 : w3 : w4 : ws) =  w8ToW32' (w1, w2, w3, w4) : w8ToW32 ws
 fastRandomSum nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
                       print $ w8ToW32Sum (BI.unpackBytes s) 0
 
-w8ToW32Sum                               :: [Word8] -> Word32 -> Word32
-w8ToW32Sum []                       sumS =  sumS
-w8ToW32Sum (w1 : w2 : w3 : w4 : ws) sumS =  w8ToW32Sum ws (sumS + w8ToW32' (w1, w2, w3, w4))
+w8ToW32Sum                            :: [Word8] -> Word32 -> Word32
+w8ToW32Sum []                       x =  x
+w8ToW32Sum (w1 : w2 : w3 : w4 : ws) _ =  w8ToW32Sum ws (w8ToW32' (w1, w2, w3, w4))
 
 w8ToW32'                  :: (Word8, Word8, Word8, Word8) -> Word32
 w8ToW32' (w1, w2, w3, w4) =  (((((w1' `shiftL` 8) .|.  w2') `shiftL` 8) .|. w3') `shiftL` 8) .|. w4'
