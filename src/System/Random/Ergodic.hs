@@ -93,9 +93,12 @@ modRootX a b |  a == b = RootX 0 0
 sub1               :: RootX -> RootX
 sub1 (RootX r1 r2) =  RootX (r1 - 1) r2
 
-{-# INLINE addRt2 #-}
-addRt2               :: RootX -> RootX
-addRt2 (RootX r1 r2) =  RootX r1 (r2 + 1)
+{-# INLINE addRtX #-}
+addRtX               :: RootX -> RootX
+addRtX (RootX r1 r2) =  RootX r1 (r2 + 1)
+
+addGR :: RootX -> RootX
+addGR (RootX r1 r2) =  RootX (r1 + (1 % 2)) (r2 + (1 % 2))
 
 {-# INLINE cpRootX1 #-}
 cpRootX1           :: RootX -> Ordering
@@ -170,7 +173,7 @@ mkParErgo seed =  ParErgo [] ( mkErgoGen s1
                         s4 = xorshift s3
 
 mkErgoGen      :: Int -> RootX
-mkErgoGen seed =  RootX (toRational (seed % maxBound)) 0
+mkErgoGen seed =  RootX (toRational ((xorshift seed) % maxBound)) 0
 --mkErgoGen seed =  RootX (toInteger (abs (xorshift seed)) % maxBoundInt) 0
 
 maxBoundInt :: Integer
@@ -254,13 +257,13 @@ export' fn c n gen csv |  c == n    = return ()
                        |  csv       = e1 n gen fn c
                        |  otherwise = e2 n gen fn c
                                       where e1 n gen fn c |  c == n    = return ()
-                                                          |  otherwise = do putStrLn (show (c + 1) ++ " / " ++ show n)
+                                                          |  otherwise = do --putStrLn (show (c + 1) ++ " / " ++ show n)
                                                                             BS.appendFile (fn ++ ".bin") (encode r)
                                                                             appendFile    (fn ++ ".csv") (show r ++ ", " ++ show ngen ++ "\n")
                                                                             e1 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
                                             e2 n gen fn c |  c == n    = return ()
-                                                          |  otherwise = do putStrLn (show (c + 1) ++ " / " ++ show n)
+                                                          |  otherwise = do --putStrLn (show (c + 1) ++ " / " ++ show n)
                                                                             BS.appendFile (fn ++ ".bin") (encode r)
                                                                             e2 n ngen fn (c + 1)
                                                                             where (r, ngen) =  genWord32 gen
@@ -285,7 +288,8 @@ mapIntRootX s i r =  floor (toFloatingRootX (r * mb s i))
 
 {-# INLINE go #-}
 go      :: RootX -> RootX
-go seed =  modRootX1 (addRt2 seed)
+go seed =  modRootX1 (addRtX seed)
+--go seed =  modRootX1 (addRtX seed)
 --go seed =  modRootX1 (seed + lx)
 
 fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
