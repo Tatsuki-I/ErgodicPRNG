@@ -40,9 +40,9 @@ data ParErgo = ParErgo [Word32]
 instance Show RootX where
     {-# INLINE show #-}
     show (RootX 0 0) = "0"
-    show (RootX 0 b) = show b ++ " √X"
+    show (RootX 0 b) = show b ++ " -/X"
     show (RootX a 0) = show a
-    show (RootX a b) = show a ++ " + " ++ show b ++ " √X"
+    show (RootX a b) = show a ++ " + " ++ show b ++ " -/X"
 
 instance Num RootX where
     {-# INLINE (+) #-}
