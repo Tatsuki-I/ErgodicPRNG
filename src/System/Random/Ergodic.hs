@@ -125,28 +125,11 @@ rtX :: Rational
 rtX = rt2
 --rtX =  2.2
 
-instance RandomGen ParErgo where
-    genWord32 (ParErgo [] ( r1
-                          , r2
-                          , r3
-                          , r4 )) = runEval $ do (r1', gen1) <- rpar (mapIntRootX False 32 $ go r1, go r1)
-                                                 (r2', gen2) <- rpar (mapIntRootX False 32 $ go r2, go r2)
-                                                 (r3', gen3) <- rpar (mapIntRootX False 32 $ go r3, go r3)
-                                                 (r4', gen4) <- rpar (mapIntRootX False 32 $ go r4, go r4)
-                                                 return (r1', ParErgo [ r2'
-                                                                      , r3'
-                                                                      , r4']
-                                                                      ( gen1
-                                                                      , gen2
-                                                                      , gen3
-                                                                      , gen4 ))
-    genWord32 (ParErgo (x : xs) gen) = (x, ParErgo xs gen)
-
 instance RandomGen RootX where
     -- genWord32 gen = runEval $ do r    <- rpar $ mapIntRootX False 32 gen
     --                              ngen <- rpar $ go gen
     --                              return (r, ngen)
-    genWord32 gen = ((mapIntRootX False 32 gen), go gen)
+    genWord32 gen = (xorshiftW32 10 (mapIntRootX False 32 gen), go gen)
 
 --    split gen = (gen, gen)
 
@@ -218,19 +201,6 @@ w32RandomsSum n s =  f' n s (mkErgoGen s) 0
                      where f' 0 _ _   sumS = sumS
                            f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
                                               where (w, ngen) = genWord32 gen
-
-w32RandomsSumP     :: Int -> Int -> Word32
-w32RandomsSumP n s =  f' n s (mkParErgo s) 0
-                      where f' 0 _ _   sumS = sumS
-                            f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
-                                               where (w, ngen) = genWord32 gen
-
-w32Randoms     :: Int -> Int -> [Word32]
-w32Randoms n s =  f' n s (mkParErgo s)
---w32Randoms n s =  f' n s (mkErgoGen s)
-                  where f' 0 _ _   = []
-                        f' n s gen =  w : f' (n-1) s ngen
-                                      where (w, ngen) = genWord32 gen
 
 w256Randoms     :: Int -> Int -> [Word256]
 w256Randoms n s =  f' n s (mkErgoGen s)
@@ -305,7 +275,7 @@ w8ToW32                          :: [Word8] -> [Word32]
 w8ToW32 []                       =  []
 w8ToW32 (w1 : w2 : w3 : w4 : ws) =  w8ToW32' (w1, w2, w3, w4) : w8ToW32 ws
 
-fastRandomSum nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
+fastRandomSum nr = do s <- maybe (undefined) pure =<< getHardwareEntropy (nr * 4)
                       print $ w8ToW32Sum (BI.unpackBytes s) 0
 
 w8ToW32Sum                            :: [Word8] -> Word32 -> Word32
