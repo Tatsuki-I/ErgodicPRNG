@@ -1,135 +1,27 @@
 module System.Random.Ergodic where
 
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.ByteString.Internal as BI
-import           System.Random           ( RandomGen ()
-                                         , genWord32
-                                         , split )
-import           Data.Binary             ( encode )
-import           Data.Ratio              ( (%)
-                                         , numerator
-                                         , denominator )
-import           Data.Word               ( Word8
-                                         , Word32 )
-import           Data.Function           ( (&) )
-import           Data.Bits               ( shiftL
-                                         , shiftR
-                                         , xor
-                                         , (.|.) )
-import           System.CPUTime          ( getCPUTime )
-import           System.Entropy          ( getHardwareEntropy
-                                         , getEntropy )
-import           Network.Transport.Internal ( decodeWord32 )
-import           GHC.Real                ( divZeroError )
+import qualified Data.ByteString.Lazy       as BS
+import           System.Random              ( RandomGen ()
+                                            , genWord32
+                                            , split )
+import           Data.Binary                ( encode )
+import           Data.Ratio                 ( (%)
+                                            , numerator
+                                            , denominator )
+import           Data.Word                  ( Word32 )
+import           System.CPUTime             ( getCPUTime )
+import           Data.RootX
+import           System.Random.Xorshift
+import           Data.WideWord              ( Word256 )
 import           Control.Parallel.Strategies ( rpar
                                              , runEval )
-import           Data.Root
-import           Data.WideWord           ( Word256 )
-
-data RootX = RootX Rational
-                   Integer -- Integer Term of -/2
-                   deriving ( Eq )
-
-data ParErgo = ParErgo [Word32]
-                       ( RootX
-                       , RootX
-                       , RootX
-                       , RootX )
-                       deriving ( Show )
-
-instance Show RootX where
-    {-# INLINE show #-}
-    show (RootX 0 0) = "0"
-    show (RootX 0 b) = show b ++ " -/X"
-    show (RootX a 0) = show a
-    show (RootX a b) = show a ++ " + " ++ show b ++ " -/X"
-
-instance Num RootX where
-    {-# INLINE (+) #-}
-    (RootX a b) + (RootX c d) = RootX (a + c) (b + d)
-
-    {-# INLINE signum #-}
-    signum r | r' > 0    =  1
-             | r' < 0    = -1
-             | otherwise =  0
-               where r' = toRationalRootX r
-
-    {-# INLINE negate #-}
-    negate (RootX a b) = RootX (-a) (-b)
-
-    {-# INLINE abs #-}
-    abs r = r * signum r
-
-    {-# INLINE fromInteger #-}
-    fromInteger a = RootX (a % 1) 0
-
-{-# INLINE toFloatingRootX #-}
-toFloatingRootX :: Floating a => RootX -> a
-toFloatingRootX =  fromRational . toRationalRootX
-
-{-# INLINE toRationalRootX #-}
-toRationalRootX             :: RootX -> Rational
-toRationalRootX (RootX a b) =  a + (toRational b) * rtX
-
-instance Ord RootX where
-    compare (RootX a b)
-            (RootX c d) |  n == 0    = EQ
-                        |  n >  0    = GT
-                        |  otherwise = LT
-                           where n = (a - c) + (((b - d) % 1) * rtX)
-
-{-# INLINE divRootX #-}
-divRootX     :: RootX -> RootX -> RootX
-divRootX a b |  a >= b = 1 + divRootX (a - b) b
-             |  a <  b = 0
-
-{-# INLINE modRootX #-}
-modRootX     :: RootX -> RootX -> RootX
-modRootX a b |  a == b = RootX 0 0
-             |  a >  b = modRootX (a - b) b
-             |  a <  b = a
-
-{-# INLINE sub1 #-}
-sub1               :: RootX -> RootX
-sub1 (RootX r1 r2) =  RootX (r1 - 1) r2
-
-{-# INLINE addRtX #-}
-addRtX               :: RootX -> RootX
-addRtX (RootX r1 r2) =  RootX r1 (r2 + 1)
-
-{-# INLINE cpRootX1 #-}
-cpRootX1           :: RootX -> Ordering
-cpRootX1 (RootX 1 _)                        = EQ
-cpRootX1 r         |  toRationalRootX r > 1 = GT
-                   |  otherwise             = LT
-
-{-# INLINE modRootX1 #-}
-modRootX1   :: RootX -> RootX
-modRootX1 a =  case cpRootX1 a of
-                    GT -> modRootX1 (sub1 a)
-                    LT -> a
-                    EQ -> RootX 0 0
-
-{-# INLINE rt5 #-}
-rt5 :: Rational
--- rt5 =  2.236067977499789696 -- -/5
-rt5 = 5374978561 % 2403763488 -- Continued Fraction(n=15)
-
-{-# INLINE rt2 #-}
-rt2 :: Rational
--- rt2 =  1.414213562373095048
-rt2 = 4478554083 % 3166815962 -- Continued Fraction(n=25)
-
-{-# INLINE rtX #-}
-rtX :: Rational
-rtX = rt2
---rtX =  2.2
 
 instance RandomGen RootX where
-    -- genWord32 gen = runEval $ do r    <- rpar $ mapIntRootX False 32 gen
-    --                              ngen <- rpar $ go gen
-    --                              return (r, ngen)
-    genWord32 gen = (xorshiftW32 10 (mapIntRootX False 32 gen), go gen)
+    genWord32 gen = runEval $ do r    <- rpar $ mapIntRootX False 32 gen
+                                 ngen <- rpar $ go gen
+                                 return (r, ngen)
+    --genWord32 gen = (mapIntRootX False 32 gen, go gen)
+    --genWord32 gen = (xorshiftW32 10 (mapIntRootX False 32 gen), go gen)
 
 --    split gen = (gen, gen)
 
@@ -139,19 +31,11 @@ genRaw gen = (gen, go gen)
 
 genWord256 gen = ((mapIntRootX False 256 gen), go gen)
 
-getErgoGen :: IO RootX
-getErgoGen =  do cpu <- getCPUTime
-                 return (mkErgoGen (fromIntegral cpu))
+genRational :: RootX -> (Rational, RootX)
+genRational gen = (toRationalRootX gen, go gen)
 
-mkParErgo      :: Int -> ParErgo
-mkParErgo seed =  ParErgo [] ( mkErgoGen s1
-                             , mkErgoGen s2
-                             , mkErgoGen s3
-                             , mkErgoGen s4)
-                  where s1 = xorshift seed
-                        s2 = xorshift s1
-                        s3 = xorshift s2
-                        s4 = xorshift s3
+getErgoGen :: IO RootX
+getErgoGen =  mkErgoGen . fromIntegral <$> getCPUTime
 
 mkErgoGen      :: Int -> RootX
 mkErgoGen seed =  RootX (toRational ((xorshift seed) % maxBound)) 0
@@ -160,22 +44,6 @@ mkErgoGen seed =  RootX (toRational ((xorshift seed) % maxBound)) 0
 maxBoundInt :: Integer
 maxBoundInt =  toInteger (maxBound :: Int)
 
-xorshiftW32   :: Word32 -> Word32 -> Word32
-xorshiftW32 0 s =  s
-xorshiftW32 n s =  xorshiftW32 (n - 1) (s & (\v -> (v `shiftL` 13) `xor` v)
-                                          & (\v -> (v `shiftR` 17) `xor` v)
-                                          & (\v -> (v `shiftL` 15) `xor` v))
-
-xorshiftW32'   :: Word32 -> Word32
-xorshiftW32' s =  s & (\v -> (v `shiftL` 13) `xor` v)
-                    & (\v -> (v `shiftR` 17) `xor` v)
-                    & (\v -> (v `shiftL` 15) `xor` v)
-
-xorshift   :: Int -> Int
-xorshift s =  s & (\v -> (v `shiftL` 23) `xor` v)
-                & (\v -> (v `shiftR` 13) `xor` v)
-                & (\v -> (v `shiftL` 58) `xor` v)
-
 lx :: RootX
 lx =  RootX 0 1
 --lx =  RootX (1 % 2) (1 % 2)
@@ -183,12 +51,6 @@ lx =  RootX 0 1
 
 ly :: RootX
 ly =  1
-
-w32XorshiftLast     :: Word32 -> Word32 -> Word32
-w32XorshiftLast n s =  f' n s 0
-                       where f' 0 _ x = x
-                             f' n s _ =  f' (n-1) ns ns
-                                            where ns = xorshiftW32' s
 
 ergoRandomsRaw     :: Int -> Int -> RootX
 ergoRandomsRaw n s =  f' n s (mkErgoGen s) 0
@@ -267,28 +129,3 @@ go      :: RootX -> RootX
 go seed =  modRootX1 (addRtX seed)
 --go seed =  modRootX1 (addRtX seed)
 --go seed =  modRootX1 (seed + lx)
-
-fastRandom nr = do s <- maybe (getEntropy nr) pure =<< getHardwareEntropy (nr * 4)
-                   print $ w8ToW32 $ BI.unpackBytes s
-
-w8ToW32                          :: [Word8] -> [Word32]
-w8ToW32 []                       =  []
-w8ToW32 (w1 : w2 : w3 : w4 : ws) =  w8ToW32' (w1, w2, w3, w4) : w8ToW32 ws
-
-fastRandomSum nr = do s <- maybe (undefined) pure =<< getHardwareEntropy (nr * 4)
-                      print $ w8ToW32Sum (BI.unpackBytes s) 0
-
-w8ToW32Sum                            :: [Word8] -> Word32 -> Word32
-w8ToW32Sum []                       x =  x
-w8ToW32Sum (w1 : w2 : w3 : w4 : ws) _ =  w8ToW32Sum ws (w8ToW32' (w1, w2, w3, w4))
-
-w8ToW32'                  :: (Word8, Word8, Word8, Word8) -> Word32
-w8ToW32' (w1, w2, w3, w4) =  (((((w1' `shiftL` 8) .|.  w2') `shiftL` 8) .|. w3') `shiftL` 8) .|. w4'
-                             where w1' :: Word32
-                                   w1' =  fromIntegral w1
-                                   w2' :: Word32
-                                   w2' =  fromIntegral w2
-                                   w3' :: Word32
-                                   w3' =  fromIntegral w3
-                                   w4' :: Word32
-                                   w4' =  fromIntegral w4

@@ -26,7 +26,11 @@ source-repository head
 library
   exposed-modules:
       Data.Root
+      Data.RootX
+      Pi
       System.Random.Ergodic
+      System.Random.RDRAND
+      System.Random.Xorshift
   other-modules:
       Paths_ErgodicPRNG
   hs-source-dirs:
@@ -53,7 +57,7 @@ executable ErgodicPRNG
       Paths_ErgodicPRNG
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ErgodicPRNG
     , base >=4.7 && <5

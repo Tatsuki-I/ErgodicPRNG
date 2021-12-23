@@ -2,6 +2,8 @@ module Main where
 
 import System.Environment ( getArgs )
 import System.Random.Ergodic
+import System.Random.RDRAND
+import System.Random.Xorshift
 import Data.Root
 import Crypto.Random.Entropy
 
