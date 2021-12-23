@@ -1,18 +1,18 @@
 module System.Random.Ergodic where
 
-import qualified Data.ByteString.Lazy       as BS
-import           System.Random              ( RandomGen ()
-                                            , genWord32
-                                            , split )
-import           Data.Binary                ( encode )
-import           Data.Ratio                 ( (%)
-                                            , numerator
-                                            , denominator )
-import           Data.Word                  ( Word32 )
-import           System.CPUTime             ( getCPUTime )
+import qualified Data.ByteString.Lazy        as BS
+import           System.Random               ( RandomGen ()
+                                             , genWord32
+                                             , split )
+import           Data.Binary                 ( encode )
+import           Data.Ratio                  ( (%)
+                                             , numerator
+                                             , denominator )
+import           Data.Word                   ( Word32 )
+import           System.CPUTime              ( getCPUTime )
 import           Data.RootX
 import           System.Random.Xorshift
-import           Data.WideWord              ( Word256 )
+import           Data.WideWord               ( Word256 )
 import           Control.Parallel.Strategies ( rpar
                                              , runEval )
 
