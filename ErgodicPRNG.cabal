@@ -25,9 +25,11 @@ source-repository head
 
 library
   exposed-modules:
+      ContinuedFractionExpansion
       Data.Root
       Data.RootX
       Pi
+      RatioNumbers
       System.Random.Ergodic
       System.Random.RDRAND
       System.Random.Xorshift

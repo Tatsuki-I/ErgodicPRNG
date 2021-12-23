@@ -45,8 +45,8 @@ maxBoundInt :: Integer
 maxBoundInt =  toInteger (maxBound :: Int)
 
 lx :: RootX
-lx =  RootX 0 1
---lx =  RootX (1 % 2) (1 % 2)
+--lx =  RootX 0 1
+lx =  RootX (1 % 2) (1 % 2)
     --((1 % 2) -/1) + ((1 % 2) -/5)
 
 ly :: RootX
@@ -129,3 +129,61 @@ go      :: RootX -> RootX
 go seed =  modRootX1 (addRtX seed)
 --go seed =  modRootX1 (addRtX seed)
 --go seed =  modRootX1 (seed + lx)
+
+mkErgoGen' seed = Ergodic (mkErgoGen seed) True
+
+data Ergodic = Ergodic RootX
+                       Bool
+                       deriving ( Show
+                                , Eq )
+
+instance RandomGen Ergodic where
+    genWord32 gen@(Ergodic seed _) = (mapIntRootX False 32 seed, go' gen)
+
+go'                    :: Ergodic -> Ergodic
+go' (Ergodic seed cby) =  Ergodic ny nby
+                          where ln        = lx
+                                (ny, nby) | cby && -- Y is not inversed
+                                            evenRootX (divRootX (seed + ln) -- Y will not inverse
+                                                              ly) = ((seed + ln) `modRootX` ly,  True)
+                                          | cby  -- X is not inversed
+                                                                  = (ly - ((seed + ln) `modRootX` ly), False)
+                                          | not cby && -- X is inversed
+                                            oddRootX (divRootX (ly - seed + ln) -- X will not inverse
+                                                             ly)  = ((ly - seed + ln) `modRootX` ly,  True)
+                                          | otherwise             = (ly - ((ly - seed + ln) `modRootX` ly),  False)
+
+genFloat :: Ergodic -> (Double, Ergodic)
+genFloat gen@(Ergodic seed _) = (toFloatingRootX seed, go' gen)
+
+exportData'     :: (Eq a, Show a, Num a)
+                => a    -- ^ Number of Random Numbers
+                -> Int  -- ^ Seed
+                -> Bool -- ^ True: Export CSV and Binary, False: Export Binary only
+                -> IO ()
+exportData' n s =  export'' ("UInt32_n-" ++ show n) 0 n (mkErgoGen' s)
+
+
+export''                :: (Eq a, Show a, Num a)
+                        => FilePath
+                        -> a
+                        -> a
+                        -> Ergodic
+                        -> Bool
+                        -> IO ()
+export'' fn c n gen csv |  c == n    = return ()
+                        |  csv       = e1 n gen fn c
+                        |  otherwise = e2 n gen fn c
+                                       where e1 n gen fn c |  c == n    = return ()
+                                                           |  otherwise = do --putStrLn (show (c + 1) ++ " / " ++ show n)
+                                                                             BS.appendFile (fn ++ ".bin") (encode r)
+                                                                             appendFile    (fn ++ ".csv") (show r ++ ", " ++ show ngen ++ "\n")
+                                                                             e1 n ngen fn (c + 1)
+                                                                             where (r, ngen) =  genFloat gen
+                                                                             --where (r, ngen) =  genWord32 gen
+                                             e2 n gen fn c |  c == n    = return ()
+                                                           |  otherwise = do --putStrLn (show (c + 1) ++ " / " ++ show n)
+                                                                             BS.appendFile (fn ++ ".bin") (encode r)
+                                                                             e2 n ngen fn (c + 1)
+                                                                             where (r, ngen) =  genFloat gen
+                                                                             --where (r, ngen) =  genWord32 gen

@@ -1,9 +1,13 @@
 module Data.RootX where
 
-import           Data.Ratio                 ( (%) )
+import           Data.Ratio ( (%)
+                            , numerator
+                            , denominator )
+import           GHC.Real   ( Ratio ( (:%) ) )
+import           ContinuedFractionExpansion ( cfe )
 
 data RootX = RootX Rational
-                   Integer -- Integer Term of -/2
+                   Rational -- Rational Term of Irrational number
                    deriving ( Eq )
 
 instance Show RootX where
@@ -45,7 +49,7 @@ instance Ord RootX where
             (RootX c d) |  n == 0    = EQ
                         |  n >  0    = GT
                         |  otherwise = LT
-                           where n = (a - c) + (((b - d) % 1) * rtX)
+                           where n = (a - c) + ((b - d) * rtX)
 
 {-# INLINE divRootX #-}
 divRootX     :: RootX -> RootX -> RootX
@@ -79,6 +83,18 @@ modRootX1 a =  case cpRootX1 a of
                     LT -> a
                     EQ -> RootX 0 0
 
+evenRootX   :: RootX -> Bool
+evenRootX r =  (r `modRootX` 2) == 0
+
+evenRootX' r =  even (n `div` d)
+                where n :% d = toRationalRootX r
+
+oddRootX   :: RootX -> Bool
+oddRootX r =  not (evenRootX r)
+
+oddRootX'   :: RootX -> Bool
+oddRootX' r =  not (evenRootX' r)
+
 {-# INLINE rt5 #-}
 rt5 :: Rational
 -- rt5 =  2.236067977499789696 -- -/5
@@ -89,7 +105,16 @@ rt2 :: Rational
 -- rt2 =  1.414213562373095048
 rt2 = 4478554083 % 3166815962 -- Continued Fraction(n=25)
 
+crt4 :: Rational
+crt4 =  1.5874010519
+
+piRat :: Rational
+piRat =  1285290289249 % 409120605684
+
+crt12 :: Rational
+crt12 = cfe [2, 3, 2, 5, 15, 7, 3, 1, 1, 3, 1, 1, 96, 7, 2, 6, 3, 36, 1, 17, 25]
+
 {-# INLINE rtX #-}
 rtX :: Rational
-rtX = rt2
+rtX = crt12
 --rtX =  2.2
