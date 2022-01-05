@@ -41,11 +41,14 @@ genWord256 gen = ((mapIntIr False 256 gen), go gen)
 genRational :: Irrational -> (Rational, Irrational)
 genRational gen = (toRationalIr gen, go gen)
 
-getErgoGen :: IO Irrational
+getIrrGen :: IO Irrational
+getIrrGen =  mkIrrGen . fromIntegral <$> getCPUTime
+
+getErgoGen :: IO Ergodic
 getErgoGen =  mkErgoGen . fromIntegral <$> getCPUTime
 
-mkErgoGen      :: Int -> Irrational
-mkErgoGen seed =  Irrational (toRational ((xorshift seed) % maxBound)) 0
+mkIrrGen      :: Int -> Irrational
+mkIrrGen seed =  Irrational (toRational ((xorshift seed) % maxBound)) 0
 --mkErgoGen seed =  Irrational (toInteger (abs (xorshift seed)) % maxBoundInt) 0
 
 maxBoundInt :: Integer
@@ -60,25 +63,25 @@ ly :: Irrational
 ly =  1
 
 ergoRandomsRaw     :: Int -> Int -> Irrational
-ergoRandomsRaw n s =  f' n s (mkErgoGen s) 0
+ergoRandomsRaw n s =  f' n s (mkIrrGen s) 0
                       where f' 0 _ _   x =  x
                             f' n s gen _ =  f' (n-1) s ngen w
                                             where (w, ngen) = genRaw gen
 
 w32RandomsSum     :: Int -> Int -> Word32
-w32RandomsSum n s =  f' n s (mkErgoGen s) 0
+w32RandomsSum n s =  f' n s (mkIrrGen s) 0
                      where f' 0 _ _   sumS = sumS
                            f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
                                               where (w, ngen) = genWord32 gen
 
 w256Randoms     :: Int -> Int -> [Word256]
-w256Randoms n s =  f' n s (mkErgoGen s)
+w256Randoms n s =  f' n s (mkIrrGen s)
                    where f' 0 _ _   = []
                          f' n s gen =  w : f' (n-1) s ngen
                                        where (w, ngen) = genWord256 gen
 
 exRaw        :: Int -> Int -> [Irrational]
-exRaw n seed =  f' n $ mkErgoGen seed
+exRaw n seed =  f' n $ mkIrrGen seed
                 where f'       :: Int -> Irrational -> [Irrational]
                       f' 0  _  =  []
                       f' n' s' =  ns : f' (n' - 1) ns
@@ -89,7 +92,7 @@ exportData     :: (Eq a, Show a, Num a)
                -> Int  -- ^ Seed
                -> Bool -- ^ True: Export CSV and Binary, False: Export Binary only
                -> IO ()
-exportData n s =  export' ("UInt32_n-" ++ show n) 0 n (mkErgoGen s)
+exportData n s =  export' ("UInt32_n-" ++ show n) 0 n (mkIrrGen s)
 
 export'                :: (Eq a, Show a, Num a, RandomGen b, Show b)
                        => FilePath
@@ -139,7 +142,7 @@ go seed =  modIr1 (addIr seed)
 --go seed =  modIr1 (addRtX seed)
 --go seed =  modIr1 (seed + lx)
 
-mkErgoGen' seed = Ergodic (mkErgoGen seed) True
+mkErgoGen seed = Ergodic (mkIrrGen seed) True
 
 data Ergodic = Ergodic Irrational
                        Bool
@@ -205,7 +208,7 @@ exportData'     :: (Eq a, Show a, Num a)
                 -> Int  -- ^ Seed
                 -> Bool -- ^ True: Export CSV and Binary, False: Export Binary only
                 -> IO ()
-exportData' n s =  export'' ("UInt32_n-" ++ show n) 0 n (mkErgoGen' s)
+exportData' n s =  export'' ("UInt32_n-" ++ show n) 0 n (mkErgoGen s)
 
 
 export''                :: (Eq a, Show a, Num a)
@@ -231,3 +234,9 @@ export'' fn c n gen csv |  c == n    = return ()
                                                                              e2 n ngen fn (c + 1)
                                                                              where (r, ngen) =  genFloat gen
                                                                              --where (r, ngen) =  genWord32 gen
+
+w32RandomsSumE     :: Int -> Int -> Word32
+w32RandomsSumE n s =  f' n s (mkErgoGen s) 0
+                     where f' 0 _ _   sumS = sumS
+                           f' n s gen sumS =  f' (n-1) s ngen (sumS + w)
+                                              where (w, ngen) = genWord32 gen

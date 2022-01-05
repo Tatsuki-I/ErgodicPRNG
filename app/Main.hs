@@ -21,6 +21,8 @@ main =  do args <- getArgs
                          print $ ergoRandomsRaw  (read (args !! 1)) (read (args !! 2))
                 5 ->  do putStrLn "Ergodic Export"
                          exportData              (read (args !! 1)) (read (args !! 2)) False
+                6 ->  do putStrLn "Ergodic Flip Sum"
+                         print $ w32RandomsSumE  (read (args !! 1)) (read (args !! 2))
                 _ ->  do putStrLn "Ergodic Flip Export"
                          exportData'             (read (args !! 1)) (read (args !! 2)) True
 --           putStrLn $ "Length is " ++ show (args !! 1)
