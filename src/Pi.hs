@@ -4,7 +4,7 @@ import System.Random.Ergodic
 import System.Random
 import Data.Word
 import Data.Ratio
-import Data.RootX
+import Data.Irrational
 import GHC.Real
 
 pi' :: Floating a => a
@@ -13,7 +13,7 @@ pi' = 3.141592653589793238462643383279502884197169399375105820974944592307816406
 piErgo :: Floating a => Int -> [(Int, Rational, a, a)]
 piErgo seed =  f (mkErgoGen seed) 0 0
 
-f         :: Floating a => RootX -> Int -> Rational -> [(Int, Rational, a, a)]
+f         :: Floating a => Irrational -> Int -> Rational -> [(Int, Rational, a, a)]
 f gen n r =  (n, res, fromRational $ res * 4, ((fromRational $ res * 4) - pi')) : f gen2 (n + 1) res
              where (x, gen1) = genRational gen
                    (y, gen2) = genRational gen1
@@ -22,4 +22,3 @@ f gen n r =  (n, res, fromRational $ res * 4, ((fromRational $ res * 4) - pi')) 
 montePi :: Rational -> Rational -> Rational -> Rational
 montePi x y (nu :% de) | (sqrt $ fromRational $ (x ^ 2) + (y ^ 2)) < 1 = (nu + 1) % (de + 1)
                        | otherwise                      = nu % (de + 1)
-
